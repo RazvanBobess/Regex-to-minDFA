@@ -197,8 +197,8 @@ def add_concat_operator(regex: List[str]) -> List[str]:
 
         next_tok = regex[i + 1]
 
-        left_atomic = is_atomic(tok) or tok == PARANTHESIS_CLOSE or (isinstance(tok, str) and  tok in {OP_STAR, OP_PLUS, OP_QUESTION})
-        right_atomic = is_atomic(next_tok) or (isinstance(next_tok, str) and next_tok == PARANTHESIS_OPEN)
+        left_atomic = is_atomic(tok) or tok == PARANTHESIS_CLOSE or (tok in {OP_STAR, OP_PLUS, OP_QUESTION})
+        right_atomic = is_atomic(next_tok) or (next_tok == PARANTHESIS_OPEN)
 
         if left_atomic and right_atomic:
             output.append(OP_CONCAT)
@@ -221,8 +221,8 @@ def apply_postfix(tokens: List[str]) -> List[str]:
                 output.append(stack.pop())
             stack.pop()
 
-        elif (isinstance(token, str) and token in precedence):
-            while (stack and isinstance(stack[-1], str) and stack[-1] in precedence and
+        elif token in precedence:
+            while (stack and stack[-1] in precedence and
                    precedence[stack[-1]] >= precedence[token]):
                 output.append(stack.pop())
             stack.append(token)
@@ -242,7 +242,7 @@ def transform_to_AST(postfix: List[str]) -> Regex:
 
     for tok in postfix:
         if is_atomic(tok):
-            if isinstance(tok, str) and tok.startswith('\\'):
+            if tok.startswith('\\'):
                 stack.append(Character(tok[1]))
             else:
                 stack.append(Character(tok))
@@ -313,12 +313,12 @@ def tokenize_regex(regex:str) -> List[str]:
             content = regex[i + 1:j]
             char_class = expand_char_class(content)
 
-            tokens.append('(')
+            tokens.append(PARANTHESIS_OPEN)
             for ch, literal in enumerate(char_class):
                 if ch > 0:
                     tokens.append(OP_UNION)
                 tokens.append(literal)
-            tokens.append(')')
+            tokens.append(PARANTHESIS_CLOSE)
 
             i = j + 1
             continue
