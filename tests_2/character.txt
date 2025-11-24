@@ -1,0 +1,14 @@
+#states
+1
+x
+0
+#initial
+0
+#accepting
+1
+#alphabet
+a
+#transitions
+1:a>x
+x:a>x
+0:a>1

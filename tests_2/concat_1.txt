@@ -1,0 +1,16 @@
+#states
+0
+3
+x
+12
+#initial
+0
+#accepting
+3
+#alphabet
+a
+#transitions
+3:a>x
+x:a>x
+0:a>12
+12:a>3

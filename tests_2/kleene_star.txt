@@ -1,0 +1,10 @@
+#states
+123013
+#initial
+123013
+#accepting
+123013
+#alphabet
+a
+#transitions
+123013:a>123013

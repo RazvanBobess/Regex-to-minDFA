@@ -1,0 +1,14 @@
+#states
+s2s0s4s3s1s4s0s1
+#initial
+s2s0s4s3s1s4s0s1
+#accepting
+s2s0s4s3s1s4s0s1
+#alphabet
+b
+c
+a
+#transitions
+s2s0s4s3s1s4s0s1:b>s2s0s4s3s1s4s0s1
+s2s0s4s3s1s4s0s1:c>s2s0s4s3s1s4s0s1
+s2s0s4s3s1s4s0s1:a>s2s0s4s3s1s4s0s1

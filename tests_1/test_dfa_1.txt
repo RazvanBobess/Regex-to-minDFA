@@ -1,0 +1,15 @@
+#states
+13
+1230123
+#initial
+1230123
+#accepting
+1230123
+#alphabet
+b
+a
+#transitions
+1230123:b>13
+1230123:a>1230123
+13:b>13
+13:a>1230123

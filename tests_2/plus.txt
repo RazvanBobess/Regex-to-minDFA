@@ -1,0 +1,12 @@
+#states
+1235345
+0
+#initial
+0
+#accepting
+1235345
+#alphabet
+a
+#transitions
+1235345:a>1235345
+0:a>1235345

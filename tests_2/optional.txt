@@ -1,0 +1,15 @@
+#states
+013
+23
+x
+#initial
+013
+#accepting
+013
+23
+#alphabet
+a
+#transitions
+013:a>23
+x:a>x
+23:a>x
