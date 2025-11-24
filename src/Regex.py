@@ -4,9 +4,6 @@ from .NFA import NFA
 
 EPSILON = ''
 
-SPECIAL_CHARACTERS = {'(', ')', '*', '+', '?', '|'}
-EXPRESSION_OPERATORS = {'*', '+', '?', '|', 'CONCAT', '(', ')'}
-
 class Regex:
     def thompson(self) -> NFA[int]:
         pass
@@ -160,191 +157,187 @@ class QuestionMark(Regex):
 
         return NFA(S=alphabet, K=states, q0=start, d=transitions, F={accept})
     
-priority = {
-    '|': 1,
-    'CONCAT': 2,
-    '*': 3,
-    '+': 3,
-    '?': 3
+OP_STAR = "*"
+OP_PLUS = "+"
+OP_QUESTION = "?"
+OP_UNION = "|"
+OP_CONCAT = 'CONCAT'
+
+PARANTHESIS_OPEN = "("
+PARANTHESIS_CLOSE = ")"
+
+precedence = {
+    OP_QUESTION: 3,
+    OP_PLUS: 3,
+    OP_STAR: 3,
+    OP_CONCAT: 2,
+    OP_UNION: 1
 }
 
-def is_literal(tok: str) -> bool:
+def is_atomic(tok):
+    if tok.startswith('\\'):
+        return True
+
     if tok.startswith('[') and tok.endswith(']'):
         return True
     
-    if tok.startswith('\\'):
+    if len(tok) == 1 and tok not in {OP_STAR, OP_PLUS, OP_QUESTION, OP_UNION, OP_CONCAT, PARANTHESIS_OPEN, PARANTHESIS_CLOSE}:
         return True
-    return tok not in EXPRESSION_OPERATORS
 
-def need_concat(prev: str, curr: str) -> bool:
+    return False
 
-    if prev is None:
-        return False
+def add_concat_operator(regex: List[str]) -> List[str]:
+    output = []
 
-    prev_ok = is_literal(prev) or prev in {'*', '+', '?', ')'}
-    curr_ok = is_literal(curr) or curr == '('
+    for i, tok in enumerate(regex):
+        output.append(tok)
 
-    return prev_ok and curr_ok
+        if i + 1 == len(regex):
+            break
 
-def tokenizer(string: str) -> List[str]:
-    tokens = []
-    i = 0
+        next_tok = regex[i + 1]
 
-    prev_char = None
+        left_atomic = is_atomic(tok) or tok == PARANTHESIS_CLOSE or (isinstance(tok, str) and  tok in {OP_STAR, OP_PLUS, OP_QUESTION})
+        right_atomic = is_atomic(next_tok) or (isinstance(next_tok, str) and next_tok == PARANTHESIS_OPEN)
 
-    while i < len(string):
-        c = string[i]
+        if left_atomic and right_atomic:
+            output.append(OP_CONCAT)
 
-        if c.isspace():
-            i += 1
-            continue
+    return output
 
-        # verific daca am un caracter precedat de '\'
-        if c == '\\' and i + 1 < len(string):
-            literal_char = string[i + 1]
-            tokens.append(("LITERAL",literal_char))
-            prev_char = literal_char
-            i += 2
-            continue
-
-        # verific daca primul caracter este '[' -> syntatic sugar
-        if c == '[':
-            j = i + 1
-            result_char = []
-            while j < len(string) and string[j] != ']':
-                if j + 2 < len(string) and string[j + 1] == '-':
-                    start_char = string[j]
-                    end_char = string[j + 2]
-
-                    for k in range(ord(start_char), ord(end_char) + 1):
-                        result_char.append(chr(k))
-                    j += 3
-                else:
-                    result_char.append(string[j])
-                    j += 1
-
-            if j == len(string):
-                raise ValueError("Unclosed character class")
-            
-            for idx, literal in enumerate(result_char):
-                if idx > 0:
-                    tokens.append('|')
-                tokens.append(literal)
-
-            i = j + 1
-            prev_char = result_char[-1] if result_char else prev_char
-            continue
-
-
-        # verific daca este un caracter special    
-        if c in SPECIAL_CHARACTERS:
-            if c == '(':
-                if need_concat(prev_char, c):
-                    tokens.append('CONCAT')
-                tokens.append(c)
-                prev_char = c
-            elif c == ')':
-                tokens.append(c)
-                prev_char = c
-            else:
-                tokens.append(c)
-                prev_char = c
-            i += 1
-            continue
-            
-        if need_concat(prev_char, c):
-            tokens.append('CONCAT')
-        prev_char = c
-
-        tokens.append(c)
-        i += 1
-
-    return tokens
-
-def convert_token_for_AST(tokens: List[str]) -> List[str]:
+def apply_postfix(tokens: List[str]) -> List[str]:
     output = []
     stack = []
 
     for token in tokens:
-        if isinstance(token, tuple) and token[0] == "LITERAL":
+        if is_atomic(token):
             output.append(token)
-            continue
 
-        if is_literal(token):
-            output.append(token)
-            continue
-
-        if token == '(':
+        elif token == PARANTHESIS_OPEN:
             stack.append(token)
-            continue
 
-        if token == ')':
-            while stack and stack[-1] != '(':
+        elif token == PARANTHESIS_CLOSE:
+            while stack and stack[-1] != PARANTHESIS_OPEN:
                 output.append(stack.pop())
             stack.pop()
-            continue
 
-        while (stack and stack[-1] != '(' and
-               priority[stack[-1]] >= priority[token]):
-            output.append(stack.pop())
-        stack.append(token)
+        elif (isinstance(token, str) and token in precedence):
+            while (stack and isinstance(stack[-1], str) and stack[-1] in precedence and
+                   precedence[stack[-1]] >= precedence[token]):
+                output.append(stack.pop())
+            stack.append(token)
+
+        else:
+            raise ValueError(f"Unknown token: {token}")
 
     while stack:
+        if stack[-1] == PARANTHESIS_OPEN or stack[-1] == PARANTHESIS_CLOSE:
+            raise ValueError("Mismatched parentheses in expression")
         output.append(stack.pop())
 
     return output
 
-
-def transform_to_AST(output: List[str]) -> Regex:
+def transform_to_AST(postfix: List[str]) -> Regex:
     stack = []
 
-    for token in output:
-        if isinstance(token, tuple) and token[0] == "LITERAL":
-            stack.append(Character(token[1]))
-            continue
-
-        if is_literal(token):
-            stack.append(Character(token))
-            continue
-
-        if token == 'CONCAT':
-            r2 = stack.pop()
-            r1 = stack.pop()
-            stack.append(Concatenation(r1, r2))
-            continue
-
-        if token == '|':
+    for tok in postfix:
+        if is_atomic(tok):
+            if isinstance(tok, str) and tok.startswith('\\'):
+                stack.append(Character(tok[1]))
+            else:
+                stack.append(Character(tok))
+        elif tok == OP_UNION:
             r2 = stack.pop()
             r1 = stack.pop()
             stack.append(Union(r1, r2))
-            continue
-
-        if token == '*':
+        elif tok == OP_CONCAT:
+            r2 = stack.pop()
+            r1 = stack.pop()
+            stack.append(Concatenation(r1, r2))
+        elif tok == OP_STAR:
             r = stack.pop()
             stack.append(Star(r))
-            continue
-
-        if token == '+':
+        elif tok == OP_PLUS:
             r = stack.pop()
             stack.append(Plus(r))
-            continue
-
-        if token == '?':
+        elif tok == OP_QUESTION:
             r = stack.pop()
             stack.append(QuestionMark(r))
-            continue
-    
-    if len(stack) != 1:
-        raise ValueError("Invalid regex expression")
-
+        
     return stack.pop()
 
-def parse_regex(string: str) -> Regex:
-    if not string:
+def expand_char_class(content: str) -> List[str]:
+    chars = []
+    i = 0
+
+    while i < len(content):
+        if i + 2 < len(content) and content[i + 1] == '-':
+            start = content[i]
+            end = content[i + 2]
+            for c in range(ord(start), ord(end) + 1):
+                chars.append(chr(c))
+            i += 3
+        else:
+            if content[i] == '\\' and i + 1 < len(content):
+                chars.append(content[i + 1])
+                i += 2
+            else:
+                chars.append(content[i])
+                i += 1
+
+    return chars
+
+def tokenize_regex(regex:str) -> List[str]:
+    tokens = []
+    i = 0
+
+    while i < len(regex):
+        c = regex[i]
+
+        if c == " ":
+            i += 1
+            continue
+        
+        if c == '\\':
+            if i + 1 >= len(regex):
+                raise ValueError("Invalid escape sequence at end of regex")
+            tokens.append('\\' + regex[i + 1])
+            i += 2
+            continue
+
+        if c == '[':
+            j = i + 1
+            while j < len(regex) and regex[j] != ']':
+                j += 1
+            
+            content = regex[i + 1:j]
+            char_class = expand_char_class(content)
+
+            tokens.append('(')
+            for ch, literal in enumerate(char_class):
+                if ch > 0:
+                    tokens.append(OP_UNION)
+                tokens.append(literal)
+            tokens.append(')')
+
+            i = j + 1
+            continue
+
+        tokens.append(c)
+        i += 1
+    
+    return tokens
+
+def parse_regex(regex: str) -> Regex:
+
+    if regex == '':
         return Epsilon()
 
-    tokenized = tokenizer(string)
-    output = convert_token_for_AST(tokenized)
-    ast = transform_to_AST(output)
+    tokens = tokenize_regex(regex)
+
+    tokens_with_concat = add_concat_operator(tokens)
+
+    postfix = apply_postfix(tokens_with_concat)
+    ast = transform_to_AST(postfix)
 
     return ast
